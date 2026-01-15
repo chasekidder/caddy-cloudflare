@@ -7,11 +7,19 @@ on:
     inputs:
       build_version:
         description: 'Caddy version to build (without v prefix, e.g., 2.8.0)'
-        required: false
+        required: true
 
 permissions:
   contents: write
   packages: write
+
+env:
+  IMAGE_DESC: "Caddy with Cloudflare DNS + caddy-docker-proxy modules"
+  IMAGE_KEYWORDS: "caddy,cloudflare,dns,webserver,caddy-docker-proxy"
+  IMAGE_LOGO_URL: "https://avatars.githubusercontent.com/u/12955528?s=48&v=4"  # Put your own image here for a fancy profile on https://artifacthub.io/!
+  IMAGE_NAME: "${{ github.event.repository.name }}"  # output image name, usually same as repo name
+  IMAGE_REGISTRY: "ghcr.io/${{ github.repository_owner }}"  # do not edit
+  DEFAULT_TAG: "latest"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -19,9 +27,25 @@ concurrency:
 
 jobs:
   build-and-push:
-    runs-on: ubuntu-latest
+    name: Build and push image
+    runs-on: ubuntu-24.04
 
     steps:
+      - name: Prepare environment
+        run: |
+          # Lowercase the image uri
+          echo "IMAGE_REGISTRY=${IMAGE_REGISTRY,,}" >> ${GITHUB_ENV}
+          echo "IMAGE_NAME=${IMAGE_NAME,,}" >> ${GITHUB_ENV}
+
+      - name: Get current date
+        id: date
+        run: |
+          # This generates a timestamp like what is defined on the ArtifactHub documentation
+          # E.G: 2022-02-08T15:38:15Z'
+          # https://artifacthub.io/docs/topics/repositories/container-images/
+          # https://linux.die.net/man/1/date
+          echo "date=$(date -u +%Y\-%m\-%d\T%H\:%M\:%S\Z)" >> $GITHUB_OUTPUT
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -37,16 +61,6 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-        env:
-          user: ${{ secrets.DOCKERHUB_USERNAME }}
-          token: ${{ secrets.DOCKERHUB_TOKEN }}
-        if: ${{ env.user != '' && env.token != '' }}
 
       - name: Set Repository Owner and Name in Lowercase
         run: |
@@ -70,19 +84,6 @@ jobs:
           # Strip v prefix if present
           VERSION="${VERSION#v}"
           echo "VERSION=${VERSION}" >> $GITHUB_ENV
-
-      - name: Set Docker Hub image (if credentials exist)
-        run: |
-          # Check if Docker Hub credentials are provided
-          if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
-            if [ -n "${{ secrets.DOCKERHUB_REPOSITORY_NAME }}" ]; then
-              echo "DOCKERHUB_IMAGE=${{ secrets.DOCKERHUB_REPOSITORY_NAME }}" >> $GITHUB_ENV
-            else
-              echo "DOCKERHUB_IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/${{ env.REPO_NAME }}" >> $GITHUB_ENV
-            fi
-          else
-            echo "Warning: DOCKERHUB_USERNAME or DOCKERHUB_TOKEN not set. Docker Hub image will not be pushed."
-          fi
 
       - name: Docker Metadata
         id: meta
@@ -119,6 +120,28 @@ jobs:
           platforms: linux/amd64,linux/arm64,linux/arm/v7,linux/ppc64le,linux/s390x
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      # This section is optional and only needs to be enabled if you plan on distributing
+      # your project for others to consume. You will need to create a public and private key
+      # using Cosign and save the private key as a repository secret in Github for this workflow
+      # to consume. For more details, review the image signing section of the README.
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
+        if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        with:
+          cosign-release: 'v2.6.1'
+
+      - name: Sign container image
+        if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        run: |
+          IMAGE_FULL="${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}"
+          for tag in ${{ steps.meta.outputs.tags }}; do
+            cosign sign -y --key env://COSIGN_PRIVATE_KEY $IMAGE_FULL:$tag
+          done
+        env:
+          TAGS: ${{ steps.build.outputs.digest }}
+          COSIGN_EXPERIMENTAL: false
+          COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
