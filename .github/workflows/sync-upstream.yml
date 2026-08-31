@@ -1,0 +1,76 @@
+name: Sync upstream
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # weekly on Monday 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── Preserve our overlay files before resetting ────────────
+      - name: Save custom overlay
+        run: |
+          mkdir -p /tmp/overlay/.github/workflows /tmp/overlay/.github/scripts
+          cp .github/workflows/sync-upstream.yml  /tmp/overlay/.github/workflows/
+          cp .github/scripts/apply-customizations.py /tmp/overlay/.github/scripts/
+          [ -f cosign.pub ] && cp cosign.pub /tmp/overlay/
+
+      # ── Hard-reset to upstream ─────────────────────────────────
+      - name: Fetch upstream and reset
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/CaddyBuilds/caddy-cloudflare.git 2>/dev/null || true
+          git fetch upstream main
+          UPSTREAM_SHA=$(git rev-parse upstream/main)
+          git reset --hard upstream/main
+          echo "Reset to upstream/main at ${UPSTREAM_SHA}"
+
+      # ── Restore & apply customizations ─────────────────────────
+      - name: Restore overlay files
+        run: |
+          cp -r /tmp/overlay/.github .
+          [ -f /tmp/overlay/cosign.pub ] && cp /tmp/overlay/cosign.pub .
+
+      - name: Apply customizations
+        run: python3 .github/scripts/apply-customizations.py
+
+      # ── Sanity checks ─────────────────────────────────────────
+      - name: Verify overlay
+        run: |
+          fail=0
+          for mod in caddy-docker-proxy caddy-l4; do
+            grep -q "$mod" Dockerfile || { echo "FAIL: $mod missing from Dockerfile"; fail=1; }
+          done
+          grep -q 'docker-proxy' Dockerfile || { echo "FAIL: CMD missing from Dockerfile"; fail=1; }
+          if [ -f Dockerfile.alpine ]; then
+            for mod in caddy-docker-proxy caddy-l4; do
+              grep -q "$mod" Dockerfile.alpine || { echo "FAIL: $mod missing from Dockerfile.alpine"; fail=1; }
+            done
+          fi
+          if [ -f .github/workflows/build-docker-image.yml ]; then
+            grep -qi "cosign" .github/workflows/build-docker-image.yml || { echo "FAIL: cosign missing from build workflow"; fail=1; }
+          fi
+          [ $fail -eq 0 ] && echo "All checks passed"
+          exit $fail
+
+      # ── Commit & push ─────────────────────────────────────────
+      - name: Commit and push
+        run: |
+          git add -A
+          if git diff --staged --quiet; then
+            echo "Already in sync with upstream — nothing to push"
+          else
+            git commit -m "chore: sync with upstream + apply custom modules and cosign"
+            git push --force-with-lease origin main
+          fi
