@@ -51,6 +51,8 @@ on:
         required: false
       DOCKERHUB_REPOSITORY_NAME:
         required: false
+      SIGNING_SECRET:
+        required: false
 
 permissions:
   contents: write
@@ -150,6 +152,23 @@ jobs:
           platforms: linux/amd64,linux/arm64,linux/arm/v7,linux/ppc64le,linux/s390x
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+        if: github.event_name != 'pull_request'
+
+      - name: Sign container image
+        if: github.event_name != 'pull_request'
+        run: |
+          while IFS= read -r tag; do
+            [ -z "$tag" ] && continue
+            echo "Signing ${tag}..."
+            cosign sign -y --key env://COSIGN_PRIVATE_KEY "${tag}" || echo "Warning: failed to sign ${tag}"
+          done <<< "$TAGS"
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+          COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
 
       - name: Verify built image
         run: |
