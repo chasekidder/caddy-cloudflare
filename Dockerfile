@@ -12,7 +12,9 @@ RUN GOOS=$TARGETOS GOARCH=$TARGETARCH GOARM=${TARGETVARIANT#v} CGO_ENABLED=0 XCA
     --with github.com/caddy-dns/cloudflare \
     --with github.com/WeidiDeng/caddy-cloudflare-ip \
     --with github.com/fvbommel/caddy-combine-ip-ranges \
-    --with github.com/mholt/caddy-ratelimit
+    --with github.com/mholt/caddy-ratelimit \
+    --with github.com/lucaslorentz/caddy-docker-proxy/v2 \
+    --with github.com/mholt/caddy-l4
 
 # Slim image: our own Alpine base (the official image minus its stock binary) with the
 # custom-built binary, so the image carries one Caddy binary instead of two. The builder
@@ -24,3 +26,5 @@ COPY --from=builder /usr/bin/caddy /usr/bin/caddy
 # Kept last so a plain `docker build .` produces it.
 FROM caddy:${CADDY_VERSION} AS default
 COPY --from=builder /usr/bin/caddy /usr/bin/caddy
+
+CMD ["caddy", "docker-proxy"]
