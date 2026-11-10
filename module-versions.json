@@ -1,25 +1,35 @@
 {
-  "last_checked": "2026-10-25T20:21:47.181449+00:00",
+  "last_checked": "2026-11-10T05:48:17.447057+00:00",
   "modules": {
     "github.com/caddy-dns/cloudflare": {
       "repo": "caddy-dns/cloudflare",
       "last_commit_sha": "a8737d095ad5a48ca031cea6ab704057dbc2d250",
-      "last_checked": "2026-10-25T20:21:46.342636+00:00"
+      "last_checked": "2026-11-10T05:48:16.128710+00:00"
     },
     "github.com/WeidiDeng/caddy-cloudflare-ip": {
       "repo": "WeidiDeng/caddy-cloudflare-ip",
       "last_commit_sha": "f53b62aa13cb7ad79c8b47aacc3f2f03989b67e5",
-      "last_checked": "2026-10-25T20:21:46.618936+00:00"
+      "last_checked": "2026-11-10T05:48:16.382176+00:00"
     },
     "github.com/fvbommel/caddy-combine-ip-ranges": {
       "repo": "fvbommel/caddy-combine-ip-ranges",
       "last_commit_sha": "5624d08f5f9e788816bdd877b7c81280c69b434e",
-      "last_checked": "2026-10-25T20:21:46.878826+00:00"
+      "last_checked": "2026-11-10T05:48:16.647635+00:00"
     },
     "github.com/mholt/caddy-ratelimit": {
       "repo": "mholt/caddy-ratelimit",
       "last_commit_sha": "5625512f24f6f59d6f64fb3aafe5eecff0b286db",
-      "last_checked": "2026-10-25T20:21:47.181419+00:00"
+      "last_checked": "2026-11-10T05:48:16.961283+00:00"
+    },
+    "github.com/lucaslorentz/caddy-docker-proxy/v2": {
+      "repo": "lucaslorentz/caddy-docker-proxy",
+      "last_commit_sha": "c78444b2b09afc9393b06922b1a6231b407cdeb7",
+      "last_checked": "2026-11-10T05:48:17.193293+00:00"
+    },
+    "github.com/mholt/caddy-l4": {
+      "repo": "mholt/caddy-l4",
+      "last_commit_sha": "eafc300ef23bcb2a28cc329a18e1e98bcd2b7cee",
+      "last_checked": "2026-11-10T05:48:17.447025+00:00"
     }
   }
 }
